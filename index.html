@@ -60,13 +60,12 @@
     }
 
     .scan-frame {
-        width: 250px;
-        height: 250px;
+        width: 300px;  /* Aumenta si es muy pequeño */
+        height: 300px; /* Aumenta si es muy pequeño */
         border: 4px solid #3B82F6;
         border-radius: 20px;
         background: transparent;
         position: relative;
-        /* box-shadow removido */
     }
   
     
@@ -280,7 +279,14 @@
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
         // Obtener los datos de la imagen para el escaneo
-        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+        // Calcular el área del recuadro de escaneo (centrado en la parte inferior)
+        const scanBoxSize = 250; // mismo tamaño que el recuadro azul
+        const scanBoxX = (canvas.width - scanBoxSize) / 2;
+        const scanBoxY = canvas.height * 0.15; // ajusta esta posición según donde esté tu recuadro
+
+        // Solo escanear el área del recuadro
+        const imageData = context.getImageData(scanBoxX, scanBoxY, scanBoxSize, scanBoxSize);
+        console.log('Escaneando área:', scanBoxX, scanBoxY, scanBoxSize, scanBoxSize);
         
         try {
           // Escanear el código QR
