@@ -12,22 +12,6 @@ Aplicación web para validar códigos QR contra un archivo Excel. Ideal para con
 - Responsive: funciona en móvil y escritorio
 - Sin backend necesario
 
-## Deployment en Vercel
-
-### Opción 1: Desde GitHub
-
-1. Sube este repositorio a GitHub
-2. Ve a [vercel.com](https://vercel.com)
-3. Haz clic en "Import Project"
-4. Selecciona tu repositorio
-5. ¡Deploy automático! 
-
-### Opción 2: Vercel CLI
-```bash
-npm install -g vercel
-vercel
-```
-
 ## Uso Local
 
 1. Clona el repositorio
