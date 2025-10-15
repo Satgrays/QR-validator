@@ -34,11 +34,8 @@
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
     }
-    
-    #videoElement {
-      width: 100%;
-      height: auto;
-      display: block;
+    video {
+      transform: scaleX(-1); /* Espejo para que sea más natural */
     }
   </style>
 </head>
@@ -61,7 +58,6 @@
       const [isScanning, setIsScanning] = useState(false);
       const [result, setResult] = useState(null);
       const [error, setError] = useState('');
-      const [videoReady, setVideoReady] = useState(false);
       const videoRef = useRef(null);
       const canvasRef = useRef(null);
       const streamRef = useRef(null);
@@ -85,8 +81,6 @@
             
             workbook.SheetNames.forEach(sheetName => {
               const worksheet = workbook.Sheets[sheetName];
-              if (!worksheet['!ref']) return;
-              
               const range = XLSX.utils.decode_range(worksheet['!ref']);
               
               for (let row = range.s.r; row <= range.e.r; row++) {
@@ -117,41 +111,32 @@
 
       const startScanning = async () => {
         try {
-          setVideoReady(false);
-          const stream = await navigator.mediaDevices.getUserMedia({
-            video: { 
-              facingMode: 'environment',
+          const constraints = {
+            video: {
+              facingMode: { ideal: 'environment' },
               width: { ideal: 1280 },
               height: { ideal: 720 }
             }
-          });
+          };
+          
+          const stream = await navigator.mediaDevices.getUserMedia(constraints);
           
           if (videoRef.current) {
             videoRef.current.srcObject = stream;
             streamRef.current = stream;
+            setIsScanning(true);
+            setResult(null);
+            setError('');
             
-            // Esperar a que el video esté listo
+            // Esperar a que el video esté listo antes de empezar a escanear
             videoRef.current.onloadedmetadata = () => {
-              videoRef.current.play()
-                .then(() => {
-                  setVideoReady(true);
-                  setIsScanning(true);
-                  setResult(null);
-                  setError('');
-                  
-                  // Iniciar escaneo después de que el video esté reproduciendo
-                  scanIntervalRef.current = setInterval(scanQRCode, 300);
-                })
-                .catch(err => {
-                  console.error('Error al reproducir video:', err);
-                  setError('Error al iniciar la cámara');
-                  stopScanning();
-                });
+              videoRef.current.play();
+              scanIntervalRef.current = setInterval(scanQRCode, 300);
             };
           }
         } catch (err) {
-          console.error('Error al acceder a la cámara:', err);
           setError('No se pudo acceder a la cámara. Verifica los permisos.');
+          console.error(err);
         }
       };
 
@@ -164,15 +149,11 @@
           clearInterval(scanIntervalRef.current);
           scanIntervalRef.current = null;
         }
-        if (videoRef.current) {
-          videoRef.current.srcObject = null;
-        }
         setIsScanning(false);
-        setVideoReady(false);
       };
 
       const scanQRCode = () => {
-        if (!videoRef.current || !canvasRef.current || !videoReady) return;
+        if (!videoRef.current || !canvasRef.current) return;
 
         const video = videoRef.current;
         const canvas = canvasRef.current;
@@ -181,23 +162,14 @@
         if (video.readyState === video.HAVE_ENOUGH_DATA) {
           canvas.width = video.videoWidth;
           canvas.height = video.videoHeight;
-          
-          if (canvas.width === 0 || canvas.height === 0) return;
-          
           context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-          try {
-            const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-            const code = jsQR(imageData.data, imageData.width, imageData.height, {
-              inversionAttempts: "dontInvert",
-            });
+          const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(imageData.data, imageData.width, imageData.height);
 
-            if (code && code.data) {
-              validateQRCode(code.data);
-              stopScanning();
-            }
-          } catch (err) {
-            console.error('Error al escanear:', err);
+          if (code && code.data) {
+            validateQRCode(code.data);
+            stopScanning();
           }
         }
       };
@@ -277,30 +249,38 @@
 
                 {isScanning && (
                   <div className="text-center">
-                    <h2 className="text-2xl font-semibold mb-4 text-gray-800">
-                      {videoReady ? 'Escaneando...' : 'Iniciando cámara...'}
-                    </h2>
-                    <div className="relative bg-black rounded-lg overflow-hidden mb-4" style={{ minHeight: '300px' }}>
+                    <h2 className="text-2xl font-semibold mb-4 text-gray-800">Apunta al código QR</h2>
+                    <p className="text-gray-600 mb-4">Centra el código QR en el recuadro</p>
+                    <div className="relative bg-black rounded-lg overflow-hidden mb-4 mx-auto" style={{ maxWidth: '500px' }}>
                       <video
                         ref={videoRef}
-                        id="videoElement"
                         autoPlay
                         playsInline
                         muted
                         className="w-full h-auto"
+                        style={{ display: 'block' }}
                       />
-                      {videoReady && (
-                        <div className="absolute inset-0 pointer-events-none">
-                          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-64 border-4 border-green-400 rounded-lg"></div>
+                      {/* Overlay con recuadro de escaneo */}
+                      <div className="absolute inset-0 pointer-events-none">
+                        {/* Esquinas del recuadro */}
+                        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" style={{ width: '250px', height: '250px' }}>
+                          {/* Esquina superior izquierda */}
+                          <div className="absolute top-0 left-0 w-12 h-12 border-t-4 border-l-4 border-green-400"></div>
+                          {/* Esquina superior derecha */}
+                          <div className="absolute top-0 right-0 w-12 h-12 border-t-4 border-r-4 border-green-400"></div>
+                          {/* Esquina inferior izquierda */}
+                          <div className="absolute bottom-0 left-0 w-12 h-12 border-b-4 border-l-4 border-green-400"></div>
+                          {/* Esquina inferior derecha */}
+                          <div className="absolute bottom-0 right-0 w-12 h-12 border-b-4 border-r-4 border-green-400"></div>
                         </div>
-                      )}
+                      </div>
                     </div>
                     <canvas ref={canvasRef} className="hidden" />
                     <button
                       onClick={stopScanning}
-                      className="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700 transition-colors"
+                      className="bg-red-600 text-white px-8 py-3 rounded-lg hover:bg-red-700 transition-colors text-lg font-medium"
                     >
-                      Cancelar
+                      Cancelar Escaneo
                     </button>
                   </div>
                 )}
@@ -311,17 +291,17 @@
                       <div className="bg-green-50 border-4 border-green-500 rounded-2xl p-8 mb-6">
                         <CheckCircle className="w-24 h-24 mx-auto text-green-600 mb-4" />
                         <h2 className="text-4xl font-bold text-green-700 mb-2">APROBADO</h2>
-                        <p className="text-green-600 text-lg break-words">"{result.data}"</p>
+                        <p className="text-green-600 text-lg">"{result.data}"</p>
                       </div>
                     ) : (
                       <div className="bg-red-50 border-4 border-red-500 rounded-2xl p-8 mb-6">
                         <XCircle className="w-24 h-24 mx-auto text-red-600 mb-4" />
                         <h2 className="text-4xl font-bold text-red-700 mb-2">NO APROBADO</h2>
-                        <p className="text-red-600 text-lg break-words">"{result.data}"</p>
+                        <p className="text-red-600 text-lg">"{result.data}"</p>
                       </div>
                     )}
                     
-                    <div className="flex gap-4 justify-center flex-wrap">
+                    <div className="flex gap-4 justify-center">
                       <button
                         onClick={() => {
                           resetApp();
