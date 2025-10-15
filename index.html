@@ -34,8 +34,63 @@
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
     }
-    video {
-      transform: scaleX(-1); /* Espejo para que sea más natural */
+    
+    .scan-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      pointer-events: none;
+    }
+    
+    .scan-window {
+      width: 100%;
+      height: 70%;
+      border: 2px solid rgba(255, 255, 255, 0.8);
+      border-radius: 20px 20px 0 0;
+      background: rgba(0, 0, 0, 0.3);
+      backdrop-filter: blur(5px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .scan-frame {
+      width: 250px;
+      height: 250px;
+      border: 4px solid #3B82F6;
+      border-radius: 20px;
+      background: transparent;
+      position: relative;
+    }
+    
+    .scan-frame::before {
+      content: '';
+      position: absolute;
+      top: -4px;
+      left: -4px;
+      right: -4px;
+      bottom: -4px;
+      border: 2px solid rgba(255, 255, 255, 0.5);
+      border-radius: 22px;
+    }
+    
+    .scan-line {
+      position: absolute;
+      height: 4px;
+      background: linear-gradient(90deg, transparent, #3B82F6, transparent);
+      width: 100%;
+      animation: scan 2s linear infinite;
+    }
+    
+    @keyframes scan {
+      0% { top: 0; }
+      50% { top: calc(100% - 4px); }
+      100% { top: 0; }
     }
   </style>
 </head>
@@ -58,10 +113,11 @@
       const [isScanning, setIsScanning] = useState(false);
       const [result, setResult] = useState(null);
       const [error, setError] = useState('');
+      const [cameraReady, setCameraReady] = useState(false);
       const videoRef = useRef(null);
       const canvasRef = useRef(null);
       const streamRef = useRef(null);
-      const scanIntervalRef = useRef(null);
+      const animationFrameRef = useRef(null);
 
       useEffect(() => {
         lucide.createIcons();
@@ -111,45 +167,69 @@
 
       const startScanning = async () => {
         try {
-          const constraints = {
-            video: {
-              facingMode: { ideal: 'environment' },
-              width: { ideal: 1280 },
-              height: { ideal: 720 }
+          setError('');
+          setResult(null);
+          setIsScanning(true);
+          setCameraReady(false);
+
+          // Detener cualquier stream anterior
+          if (streamRef.current) {
+            streamRef.current.getTracks().forEach(track => track.stop());
+          }
+
+          // Obtener acceso a la cámara trasera
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: { 
+              facingMode: 'environment',
+              width: { ideal: 1920 },
+              height: { ideal: 1080 }
             }
-          };
+          });
           
-          const stream = await navigator.mediaDevices.getUserMedia(constraints);
+          streamRef.current = stream;
           
           if (videoRef.current) {
             videoRef.current.srcObject = stream;
-            streamRef.current = stream;
-            setIsScanning(true);
-            setResult(null);
-            setError('');
             
-            // Esperar a que el video esté listo antes de empezar a escanear
+            // Esperar a que el video esté listo
             videoRef.current.onloadedmetadata = () => {
+              setCameraReady(true);
               videoRef.current.play();
-              scanIntervalRef.current = setInterval(scanQRCode, 300);
+              startQRScanning();
             };
           }
         } catch (err) {
           setError('No se pudo acceder a la cámara. Verifica los permisos.');
-          console.error(err);
+          console.error('Error de cámara:', err);
+          setIsScanning(false);
+        }
+      };
+
+      const startQRScanning = () => {
+        if (!animationFrameRef.current) {
+          const scanFrame = () => {
+            if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
+              scanQRCode();
+            }
+            animationFrameRef.current = requestAnimationFrame(scanFrame);
+          };
+          animationFrameRef.current = requestAnimationFrame(scanFrame);
         }
       };
 
       const stopScanning = () => {
+        if (animationFrameRef.current) {
+          cancelAnimationFrame(animationFrameRef.current);
+          animationFrameRef.current = null;
+        }
+        
         if (streamRef.current) {
           streamRef.current.getTracks().forEach(track => track.stop());
           streamRef.current = null;
         }
-        if (scanIntervalRef.current) {
-          clearInterval(scanIntervalRef.current);
-          scanIntervalRef.current = null;
-        }
+        
         setIsScanning(false);
+        setCameraReady(false);
       };
 
       const scanQRCode = () => {
@@ -159,7 +239,8 @@
         const canvas = canvasRef.current;
         const context = canvas.getContext('2d');
 
-        if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        // Configurar canvas con las dimensiones del video
+        if (video.videoWidth > 0 && video.videoHeight > 0) {
           canvas.width = video.videoWidth;
           canvas.height = video.videoHeight;
           context.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -185,6 +266,7 @@
       };
 
       const resetApp = () => {
+        stopScanning();
         setResult(null);
         setError('');
       };
@@ -249,39 +331,51 @@
 
                 {isScanning && (
                   <div className="text-center">
-                    <h2 className="text-2xl font-semibold mb-4 text-gray-800">Apunta al código QR</h2>
-                    <p className="text-gray-600 mb-4">Centra el código QR en el recuadro</p>
-                    <div className="relative bg-black rounded-lg overflow-hidden mb-4 mx-auto" style={{ maxWidth: '500px' }}>
+                    <h2 className="text-2xl font-semibold mb-4 text-gray-800">
+                      {cameraReady ? "Escaneando QR..." : "Iniciando cámara..."}
+                    </h2>
+                    
+                    <div className="relative bg-black rounded-lg overflow-hidden mb-4" style={{ minHeight: '400px' }}>
                       <video
                         ref={videoRef}
                         autoPlay
                         playsInline
                         muted
-                        className="w-full h-auto"
-                        style={{ display: 'block' }}
+                        className="w-full h-full object-cover"
                       />
-                      {/* Overlay con recuadro de escaneo */}
-                      <div className="absolute inset-0 pointer-events-none">
-                        {/* Esquinas del recuadro */}
-                        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" style={{ width: '250px', height: '250px' }}>
-                          {/* Esquina superior izquierda */}
-                          <div className="absolute top-0 left-0 w-12 h-12 border-t-4 border-l-4 border-green-400"></div>
-                          {/* Esquina superior derecha */}
-                          <div className="absolute top-0 right-0 w-12 h-12 border-t-4 border-r-4 border-green-400"></div>
-                          {/* Esquina inferior izquierda */}
-                          <div className="absolute bottom-0 left-0 w-12 h-12 border-b-4 border-l-4 border-green-400"></div>
-                          {/* Esquina inferior derecha */}
-                          <div className="absolute bottom-0 right-0 w-12 h-12 border-b-4 border-r-4 border-green-400"></div>
+                      
+                      {cameraReady && (
+                        <div className="scan-overlay">
+                          <div className="scan-window">
+                            <div className="scan-frame">
+                              <div className="scan-line"></div>
+                            </div>
+                          </div>
                         </div>
-                      </div>
+                      )}
+                      
+                      {!cameraReady && (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <div className="text-white text-lg">Cargando cámara...</div>
+                        </div>
+                      )}
                     </div>
-                    <canvas ref={canvasRef} className="hidden" />
+                    
+                    <canvas 
+                      ref={canvasRef} 
+                      className="hidden" 
+                    />
+                    
                     <button
                       onClick={stopScanning}
-                      className="bg-red-600 text-white px-8 py-3 rounded-lg hover:bg-red-700 transition-colors text-lg font-medium"
+                      className="bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700 transition-colors font-medium"
                     >
                       Cancelar Escaneo
                     </button>
+                    
+                    <p className="text-gray-600 mt-3 text-sm">
+                      Enfoca el código QR dentro del recuadro azul
+                    </p>
                   </div>
                 )}
 
