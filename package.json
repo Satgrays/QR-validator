@@ -1,0 +1,15 @@
+{
+  "name": "qr-validator",
+  "version": "1.0.0",
+  "description": "Aplicación web para validar códigos QR contra un archivo Excel",
+  "main": "index.html",
+  "scripts": {
+    "dev": "npx serve .",
+    "build": "echo 'No build needed - static site'"
+  },
+  "keywords": ["qr", "validator", "excel", "scanner"],
+  "author": "Tu Nombre",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {}
+}
