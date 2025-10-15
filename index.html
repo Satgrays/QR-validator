@@ -201,8 +201,8 @@
           const stream = await navigator.mediaDevices.getUserMedia({
             video: { 
               facingMode: 'environment',
-              width: { ideal: 1280 },
-              height: { ideal: 720 }
+              width: { ideal: 1920 },
+              height: { ideal: 1080 }
             }
           });
           
@@ -266,39 +266,26 @@
         const canvas = canvasRef.current;
         const context = canvas.getContext('2d', { willReadFrequently: true });
 
-        // Verificar si el video está listo
-        if (video.videoWidth === 0 || video.videoHeight === 0) {
-          return;
-        }
+        if (video.videoWidth === 0 || video.videoHeight === 0) return;
 
-        // Configurar canvas con las dimensiones del video
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
-        
-        // Dibujar el frame actual del video en el canvas
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-        // Obtener los datos de la imagen para el escaneo
-        // Calcular el área del recuadro de escaneo (centrado en la parte inferior)
-        const scanBoxSize = 250; // mismo tamaño que el recuadro azul
+        // Aumentar el área de escaneo para mejor detección
+        const scanBoxSize = Math.min(video.videoWidth, video.videoHeight) * 0.7; // 70% del tamaño
         const scanBoxX = (canvas.width - scanBoxSize) / 2;
-        const scanBoxY = canvas.height * 0.15; // ajusta esta posición según donde esté tu recuadro
+        const scanBoxY = (canvas.height - scanBoxSize) / 2; // Centrado
 
-        // Solo escanear el área del recuadro
-        const imageData = context.getImageData(scanBoxX, scanBoxY, scanBoxSize, scanBoxSize);
-        console.log('Escaneando área:', scanBoxX, scanBoxY, scanBoxSize, scanBoxSize);
-        
         try {
-          // Escanear el código QR
-          const code = jsQR(imageData.data, imageData.width, imageData.height, {
-            inversionAttempts: 'dontInvert',
+          const imageData = context.getImageData(scanBoxX, scanBoxY, scanBoxSize, scanBoxSize);
+          
+          const code = jsQR(imageData.data, scanBoxSize, scanBoxSize, {
+            inversionAttempts: 'attemptBoth',
           });
 
-          scanAttemptsRef.current++;
-          setDebugInfo(`Escaneos: ${scanAttemptsRef.current} | Video: ${video.videoWidth}x${video.videoHeight}`);
-
           if (code) {
-            setDebugInfo(`QR detectado: ${code.data.substring(0, 20)}...`);
+            console.log('QR detectado:', code.data);
             validateQRCode(code.data);
             stopScanning();
           }
