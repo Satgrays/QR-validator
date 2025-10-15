@@ -48,25 +48,27 @@
     }
     
     .scan-window {
-      width: 100%;
-      height: 70%;
-      border: 2px solid rgba(255, 255, 255, 0.8);
-      border-radius: 20px 20px 0 0;
-      background: rgba(0, 0, 0, 0.3);
-      backdrop-filter: blur(5px);
-      display: flex;
-      align-items: center;
-      justify-content: center;
+        width: 100%;
+        height: 70%;
+        border: 2px solid rgba(255, 255, 255, 0.8);
+        border-radius: 20px 20px 0 0;
+        background: transparent; /* Cambiado a transparente */
+        /* backdrop-filter removido */
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
-    
+
     .scan-frame {
-      width: 250px;
-      height: 250px;
-      border: 4px solid #3B82F6;
-      border-radius: 20px;
-      background: transparent;
-      position: relative;
+        width: 250px;
+        height: 250px;
+        border: 4px solid #3B82F6;
+        border-radius: 20px;
+        background: transparent;
+        position: relative;
+        /* box-shadow removido */
     }
+  
     
     .scan-frame::before {
       content: '';
@@ -85,12 +87,26 @@
       background: linear-gradient(90deg, transparent, #3B82F6, transparent);
       width: 100%;
       animation: scan 2s linear infinite;
+      border-radius: 2px;
     }
     
     @keyframes scan {
-      0% { top: 0; }
-      50% { top: calc(100% - 4px); }
-      100% { top: 0; }
+      0% { top: 0; opacity: 1; }
+      50% { top: calc(100% - 4px); opacity: 1; }
+      51% { opacity: 0; }
+      100% { top: 0; opacity: 0; }
+    }
+
+    .debug-info {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      padding: 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      z-index: 1000;
     }
   </style>
 </head>
@@ -114,10 +130,12 @@
       const [result, setResult] = useState(null);
       const [error, setError] = useState('');
       const [cameraReady, setCameraReady] = useState(false);
+      const [debugInfo, setDebugInfo] = useState('');
       const videoRef = useRef(null);
       const canvasRef = useRef(null);
       const streamRef = useRef(null);
       const animationFrameRef = useRef(null);
+      const scanAttemptsRef = useRef(0);
 
       useEffect(() => {
         lucide.createIcons();
@@ -154,9 +172,11 @@
               }
             });
             
-            setExcelData(Array.from(allValues));
+            const excelArray = Array.from(allValues);
+            setExcelData(excelArray);
             setError('');
             setResult(null);
+            setDebugInfo(`Excel cargado: ${excelArray.length} registros`);
           } catch (err) {
             setError('Error al leer el archivo Excel. Verifica el formato.');
             console.error(err);
@@ -171,6 +191,7 @@
           setResult(null);
           setIsScanning(true);
           setCameraReady(false);
+          scanAttemptsRef.current = 0;
 
           // Detener cualquier stream anterior
           if (streamRef.current) {
@@ -181,8 +202,8 @@
           const stream = await navigator.mediaDevices.getUserMedia({
             video: { 
               facingMode: 'environment',
-              width: { ideal: 1920 },
-              height: { ideal: 1080 }
+              width: { ideal: 1280 },
+              height: { ideal: 720 }
             }
           });
           
@@ -191,11 +212,15 @@
           if (videoRef.current) {
             videoRef.current.srcObject = stream;
             
-            // Esperar a que el video esté listo
-            videoRef.current.onloadedmetadata = () => {
+            videoRef.current.onloadeddata = () => {
               setCameraReady(true);
-              videoRef.current.play();
+              setDebugInfo('Cámara lista - Escaneando...');
               startQRScanning();
+            };
+
+            videoRef.current.onerror = () => {
+              setError('Error al cargar el video de la cámara');
+              setIsScanning(false);
             };
           }
         } catch (err) {
@@ -206,15 +231,15 @@
       };
 
       const startQRScanning = () => {
-        if (!animationFrameRef.current) {
-          const scanFrame = () => {
-            if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
-              scanQRCode();
-            }
-            animationFrameRef.current = requestAnimationFrame(scanFrame);
-          };
-          animationFrameRef.current = requestAnimationFrame(scanFrame);
+        if (animationFrameRef.current) {
+          cancelAnimationFrame(animationFrameRef.current);
         }
+
+        const scanFrame = () => {
+          scanQRCode();
+          animationFrameRef.current = requestAnimationFrame(scanFrame);
+        };
+        animationFrameRef.current = requestAnimationFrame(scanFrame);
       };
 
       const stopScanning = () => {
@@ -224,51 +249,89 @@
         }
         
         if (streamRef.current) {
-          streamRef.current.getTracks().forEach(track => track.stop());
+          streamRef.current.getTracks().forEach(track => {
+            track.stop();
+          });
           streamRef.current = null;
         }
         
         setIsScanning(false);
         setCameraReady(false);
+        setDebugInfo('');
       };
 
       const scanQRCode = () => {
-        if (!videoRef.current || !canvasRef.current) return;
+        if (!videoRef.current || !canvasRef.current || !cameraReady) return;
 
         const video = videoRef.current;
         const canvas = canvasRef.current;
-        const context = canvas.getContext('2d');
+        const context = canvas.getContext('2d', { willReadFrequently: true });
+
+        // Verificar si el video está listo
+        if (video.videoWidth === 0 || video.videoHeight === 0) {
+          return;
+        }
 
         // Configurar canvas con las dimensiones del video
-        if (video.videoWidth > 0 && video.videoHeight > 0) {
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
-          context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        
+        // Dibujar el frame actual del video en el canvas
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-          const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-          const code = jsQR(imageData.data, imageData.width, imageData.height);
+        // Obtener los datos de la imagen para el escaneo
+        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+        
+        try {
+          // Escanear el código QR
+          const code = jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: 'dontInvert',
+          });
 
-          if (code && code.data) {
+          scanAttemptsRef.current++;
+          setDebugInfo(`Escaneos: ${scanAttemptsRef.current} | Video: ${video.videoWidth}x${video.videoHeight}`);
+
+          if (code) {
+            setDebugInfo(`QR detectado: ${code.data.substring(0, 20)}...`);
             validateQRCode(code.data);
             stopScanning();
           }
+        } catch (err) {
+          console.log('Error en escaneo:', err);
         }
       };
 
       const validateQRCode = (scannedData) => {
+        if (!excelData) {
+          setError('No hay datos de Excel cargados');
+          return;
+        }
+
         const trimmedData = scannedData.trim();
-        const isApproved = excelData.some(value => value === trimmedData);
+        const isApproved = excelData.some(value => {
+          // Comparación case-insensitive y eliminando espacios
+          return value.toString().trim().toLowerCase() === trimmedData.toLowerCase();
+        });
         
         setResult({
           data: trimmedData,
           approved: isApproved
         });
+        
+        setDebugInfo(`Validación: ${isApproved ? 'APROBADO' : 'DENEGADO'} - ${trimmedData}`);
       };
 
       const resetApp = () => {
         stopScanning();
         setResult(null);
         setError('');
+        setDebugInfo('');
+      };
+
+      const continueScanning = () => {
+        setResult(null);
+        setError('');
+        startScanning();
       };
 
       useEffect(() => {
@@ -304,7 +367,7 @@
                       <span className="font-medium">Seleccionar Archivo</span>
                       <input
                         type="file"
-                        accept=".xlsx,.xls"
+                        accept=".xlsx,.xls,.csv"
                         onChange={handleFileUpload}
                         className="hidden"
                       />
@@ -326,6 +389,16 @@
                       <Camera className="w-6 h-6" />
                       Iniciar Escaneo
                     </button>
+
+                    <div className="mt-4 p-3 bg-gray-100 rounded-lg">
+                      <p className="text-sm text-gray-600">
+                        <strong>Primeras 5 entradas del Excel:</strong><br/>
+                        {excelData.slice(0, 5).map((item, index) => (
+                          <span key={index}>"{item}"{index < 4 ? ', ' : ''}</span>
+                        ))}
+                        {excelData.length > 5 && '...'}
+                      </p>
+                    </div>
                   </div>
                 )}
 
@@ -335,7 +408,7 @@
                       {cameraReady ? "Escaneando QR..." : "Iniciando cámara..."}
                     </h2>
                     
-                    <div className="relative bg-black rounded-lg overflow-hidden mb-4" style={{ minHeight: '400px' }}>
+                    <div className="relative bg-black rounded-lg overflow-hidden mb-4" style={{ minHeight: '500px' }}>
                       <video
                         ref={videoRef}
                         autoPlay
@@ -345,13 +418,20 @@
                       />
                       
                       {cameraReady && (
-                        <div className="scan-overlay">
-                          <div className="scan-window">
-                            <div className="scan-frame">
-                              <div className="scan-line"></div>
+                        <>
+                          <div className="scan-overlay">
+                            <div className="scan-window">
+                              <div className="scan-frame">
+                                <div className="scan-line"></div>
+                              </div>
                             </div>
                           </div>
-                        </div>
+                          {debugInfo && (
+                            <div className="debug-info">
+                              {debugInfo}
+                            </div>
+                          )}
+                        </>
                       )}
                       
                       {!cameraReady && (
@@ -385,37 +465,33 @@
                       <div className="bg-green-50 border-4 border-green-500 rounded-2xl p-8 mb-6">
                         <CheckCircle className="w-24 h-24 mx-auto text-green-600 mb-4" />
                         <h2 className="text-4xl font-bold text-green-700 mb-2">APROBADO</h2>
-                        <p className="text-green-600 text-lg">"{result.data}"</p>
+                        <p className="text-green-600 text-lg font-mono">"{result.data}"</p>
+                        <p className="text-green-500 mt-2">El código existe en la base de datos</p>
                       </div>
                     ) : (
                       <div className="bg-red-50 border-4 border-red-500 rounded-2xl p-8 mb-6">
                         <XCircle className="w-24 h-24 mx-auto text-red-600 mb-4" />
-                        <h2 className="text-4xl font-bold text-red-700 mb-2">NO APROBADO</h2>
-                        <p className="text-red-600 text-lg">"{result.data}"</p>
+                        <h2 className="text-4xl font-bold text-red-700 mb-2">DENEGADO</h2>
+                        <p className="text-red-600 text-lg font-mono">"{result.data}"</p>
+                        <p className="text-red-500 mt-2">El código NO existe en la base de datos</p>
                       </div>
                     )}
                     
-                    <div className="flex gap-4 justify-center">
+                    <div className="flex gap-4 justify-center flex-wrap">
                       <button
-                        onClick={() => {
-                          resetApp();
-                          startScanning();
-                        }}
+                        onClick={continueScanning}
                         className="inline-flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
                       >
                         <Camera className="w-5 h-5" />
-                        Escanear Otro
+                        Escanear Otro QR
                       </button>
                       
                       <button
-                        onClick={() => {
-                          setExcelData(null);
-                          resetApp();
-                        }}
+                        onClick={resetApp}
                         className="inline-flex items-center gap-2 bg-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-700 transition-colors"
                       >
                         <RotateCcw className="w-5 h-5" />
-                        Reiniciar
+                        Volver al Inicio
                       </button>
                     </div>
                   </div>
