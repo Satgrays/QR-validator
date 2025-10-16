@@ -11,6 +11,7 @@ const Index = () => {
 
   const handleReset = () => {
     setValidCodes([]);
+    localStorage.removeItem("scannedQRCodes");
   };
 
   return (
