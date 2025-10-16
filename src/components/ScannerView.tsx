@@ -23,14 +23,14 @@ const ScannerView = ({ validCodes, onReset }: ScannerViewProps) => {
   const [result, setResult] = useState<ScanResult | null>(null);
   const [scannedCodes, setScannedCodes] = useState<string[]>([]);
 
-  // Cargar códigos escaneados desde localStorage al montar
+  // Load scanned codes from localStorage on mount
   useEffect(() => {
     const saved = localStorage.getItem(SCANNED_CODES_KEY);
     if (saved) {
       try {
         setScannedCodes(JSON.parse(saved));
       } catch (e) {
-        console.error("Error al cargar códigos escaneados:", e);
+        console.error("Failed to load scanned codes:", e);
       }
     }
   }, []);
@@ -45,19 +45,19 @@ const ScannerView = ({ validCodes, onReset }: ScannerViewProps) => {
   };
 
   const handleError = (err: any) => {
-    console.error("Error del escáner:", err);
+    console.error("Scanner error:", err);
   };
 
   const validateCode = (code: string) => {
-    // Normalizar y buscar el código en la base de datos
+    // Normalize and search for the code in the database
     const normalizedCode = code.trim().toLowerCase();
     
-    // Verificar si ya fue escaneado
+    // Check if already scanned
     if (scannedCodes.includes(normalizedCode)) {
       setResult({ code, valid: false, alreadyScanned: true });
       setScanning(false);
       
-      // Reanudar automáticamente el escaneo después de 2 segundos
+      // Auto-resume scanning after 2 seconds
       setTimeout(() => {
         setResult(null);
         setScanning(true);
@@ -65,12 +65,12 @@ const ScannerView = ({ validCodes, onReset }: ScannerViewProps) => {
       return;
     }
     
-    // Verificar si es válido
+    // Check if valid
     const isValid = validCodes.some(
       (validCode) => validCode.trim().toLowerCase() === normalizedCode
     );
     
-    // Si es válido, agregar a la lista de escaneados
+    // If valid, add to scanned list
     if (isValid) {
       const updatedScanned = [...scannedCodes, normalizedCode];
       setScannedCodes(updatedScanned);
@@ -80,7 +80,7 @@ const ScannerView = ({ validCodes, onReset }: ScannerViewProps) => {
     setResult({ code, valid: isValid, alreadyScanned: false });
     setScanning(false);
     
-    // Reanudar automáticamente el escaneo después de 2 segundos
+    // Auto-resume scanning after 2 seconds
     setTimeout(() => {
       setResult(null);
       setScanning(true);
@@ -103,7 +103,7 @@ const ScannerView = ({ validCodes, onReset }: ScannerViewProps) => {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background">
       <Card className="w-full max-w-md overflow-hidden">
-        {/* Encabezado */}
+        {/* Header */}
         <div className="p-6 pb-4 text-center">
           <img src={logo} alt="Secretaría de Marina" className="mx-auto w-20 h-20 mb-3" />
           <h2 className="text-2xl font-bold mb-2">Escanear Código QR</h2>
@@ -112,7 +112,7 @@ const ScannerView = ({ validCodes, onReset }: ScannerViewProps) => {
           </p>
         </div>
 
-        {/* Área del Escáner/Resultado */}
+        {/* Scanner/Result Area */}
         <div className="relative">
           {!result ? (
             <div className="w-full aspect-square bg-black">
@@ -156,14 +156,14 @@ const ScannerView = ({ validCodes, onReset }: ScannerViewProps) => {
                   {result.code}
                 </p>
                 <p className="text-white/70 text-xs">
-                  Escaneo automático en 2s...
+                  Escaneando siguiente en 2s...
                 </p>
               </div>
             </div>
           )}
         </div>
 
-        {/* Acciones */}
+        {/* Actions */}
         <div className="p-6 pt-4 space-y-3">
           {!result ? (
             <>
@@ -203,12 +203,12 @@ const ScannerView = ({ validCodes, onReset }: ScannerViewProps) => {
             className="w-full"
           >
             <Upload className="w-4 h-4 mr-2" />
-            Subir Nueva Base de Datos
+            Cargar Nueva Base de Datos
           </Button>
         </div>
       </Card>
 
-      {/* Indicador de estado */}
+      {/* Status indicator */}
       {scanning && !result && (
         <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
           <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />

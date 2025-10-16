@@ -26,7 +26,7 @@ const UploadView = ({ onFileUpload }: UploadViewProps) => {
           const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
           const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
 
-          // Extraer TODOS los valores de TODAS las celdas en toda la hoja de Excel
+          // Extract ALL values from ALL cells in the entire Excel sheet
           const codes: string[] = [];
           jsonData.forEach((row: any) => {
             if (Array.isArray(row)) {
@@ -42,13 +42,13 @@ const UploadView = ({ onFileUpload }: UploadViewProps) => {
           if (codes.length === 0) {
             toast({
               title: "Archivo vacío",
-              description: "No se encontraron códigos válidos en el archivo de Excel.",
+              description: "No se encontraron códigos válidos en el archivo Excel.",
               variant: "destructive",
             });
             return;
           }
 
-          // Limpiar códigos escaneados previamente al subir nueva base de datos
+          // Clear previously scanned codes when uploading new database
           localStorage.removeItem("scannedQRCodes");
           
           onFileUpload(codes);
@@ -58,8 +58,8 @@ const UploadView = ({ onFileUpload }: UploadViewProps) => {
           });
         } catch (error) {
           toast({
-            title: "Error al analizar archivo",
-            description: "No se pudo leer el archivo de Excel. Por favor verifique el formato.",
+            title: "Error al procesar archivo",
+            description: "No se pudo leer el archivo Excel. Por favor verifica el formato.",
             variant: "destructive",
           });
         }
@@ -69,7 +69,7 @@ const UploadView = ({ onFileUpload }: UploadViewProps) => {
     } catch (error) {
       toast({
         title: "Error",
-        description: "Error al procesar el archivo.",
+        description: "No se pudo procesar el archivo.",
         variant: "destructive",
       });
     }
@@ -82,7 +82,7 @@ const UploadView = ({ onFileUpload }: UploadViewProps) => {
           <img src={logo} alt="Secretaría de Marina" className="mx-auto w-24 h-24 mb-4" />
           <h1 className="text-3xl font-bold tracking-tight">Validador QR</h1>
           <p className="text-muted-foreground">
-            Sube tu base de datos en Excel para comenzar a validar códigos QR
+            Carga tu base de datos Excel para comenzar a validar códigos QR
           </p>
         </div>
 
@@ -91,7 +91,7 @@ const UploadView = ({ onFileUpload }: UploadViewProps) => {
             <label htmlFor="file-upload" className="cursor-pointer block">
               <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
               <p className="text-sm font-medium mb-1">
-                Haz clic para subir o arrastra y suelta
+                Haz clic para cargar o arrastra y suelta
               </p>
               <p className="text-xs text-muted-foreground">
                 Archivos Excel (.xlsx, .xls) o CSV
@@ -107,10 +107,10 @@ const UploadView = ({ onFileUpload }: UploadViewProps) => {
           </div>
 
           <div className="bg-muted/50 rounded-lg p-4 space-y-2">
-            <p className="text-xs font-medium text-foreground">Formato del archivo:</p>
+            <p className="text-xs font-medium text-foreground">Formato de archivo:</p>
             <ul className="text-xs text-muted-foreground space-y-1">
-              <li>• Se escanearán todas las celdas con datos</li>
-              <li>• Se admite cualquier formato (filas, columnas, mixto)</li>
+              <li>• Todas las celdas con datos serán escaneadas</li>
+              <li>• Cualquier formato soportado (filas, columnas, mixto)</li>
               <li>• Las celdas vacías se omiten automáticamente</li>
             </ul>
           </div>
